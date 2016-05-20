@@ -11,6 +11,11 @@ find_package(catkin REQUIRED COMPONENTS
   visualization_msgs
   sensor_msgs
 )
+
+find_package(PkgConfig)
+pkg_check_modules(SWIPL REQUIRED swipl)
+message( "SWI prolog INCLUDE_DIRS " ${SWIPL_INCLUDE_DIRS} )
+
 add_message_files(
   FILES
   ContactList.msg
@@ -29,23 +34,22 @@ generate_messages(
 )
 
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES knowrob_collision_checking
+  INCLUDE_DIRS include
+  LIBRARIES knowrob_moveit_predicates
   CATKIN_DEPENDS message_runtime moveit_msgs visualization_msgs sensor_msgs
-#  DEPENDS system_lib
+  DEPENDS swipl
 )
 
-include_directories(include ${catkin_INCLUDE_DIRS})
+include_directories(
+  include 
+  ${catkin_INCLUDE_DIRS}
+  ${SWIPL_INCLUDE_DIRS})
 
-## Declare a C++ library
-# add_library(knowrob_collision_checking
-#   src/${PROJECT_NAME}/knowrob_collision_checking.cpp
-# )
+link_directories(${SWIPL_LIBRARY_DIRS})
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(knowrob_collision_checking ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_library(knowrob_moveit_predicates src/${PROJECT_NAME}/prolog_predicates.cpp)
+add_dependencies(knowrob_moveit_predicates ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(knowrob_moveit_predicates ${catkin_LIBRARIES} ${SWIPL_LIBRARIES})
 
 add_executable(planning_scene_server src/${PROJECT_NAME}/planning_scene_server.cpp)
 add_dependencies(planning_scene_server ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
