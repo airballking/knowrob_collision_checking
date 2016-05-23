@@ -4,6 +4,7 @@ set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp 
+  roslib
   moveit_core 
   message_generation
   message_runtime

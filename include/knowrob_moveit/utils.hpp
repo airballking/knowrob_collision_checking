@@ -34,27 +34,76 @@
 #include <std_msgs/Header.h>
 #include <moveit_msgs/ContactInformation.h>
 #include <moveit/collision_detection/collision_tools.h>
+#include <ros/package.h>
+#include <fstream>
 
-// TODO: make argument const
-inline std::vector<moveit_msgs::ContactInformation> collisionResultToMsg(
-    collision_detection::CollisionResult& collision_result, const std_msgs::Header& header)
+namespace knowrob_moveit
 {
-  std::vector<moveit_msgs::ContactInformation> result;
+  // TODO: make argument const
+  inline std::vector<moveit_msgs::ContactInformation> collisionResultToMsg(
+      collision_detection::CollisionResult& collision_result, const std_msgs::Header& header)
+  {
+    std::vector<moveit_msgs::ContactInformation> result;
+  
+    for (collision_detection::CollisionResult::ContactMap::iterator it=collision_result.contacts.begin(); 
+         it!=collision_result.contacts.end(); ++it)
+      for (std::vector<collision_detection::Contact>::iterator it2=it->second.begin(); 
+           it2 != it->second.end(); ++it2)
+      {
+        moveit_msgs::ContactInformation msg;
+        msg.header = header;
+        collision_detection::contactToMsg(*it2, msg);
+        result.push_back(msg);
+      }
+  
+    ROS_INFO("Finished copying contacts.");
+  
+    return result;
+  }
+  
+  // TODO: turn into a function to generate error string, and use std::run_time
+  class Exception : public std::runtime_error
+  {
+  public:
+    Exception(const std::string& file, const std::string& error_msg)
+    : std::runtime_error("Error retrieving file [" + file + "]: " + error_msg)
+    {}
+  };
+  
+  std::string resourceUrlToPath(const std::string& url)
+  {
+    // TODO: use a real parser (like the boost one I used for the KMS40 driver).
+    std::string path = url;
+    if (!url.find("package://") == 0)
+      throw Exception(url, "Given url does not start with 'package://'.");
+    
+    path.erase(0, strlen("package://"));
+    size_t pos = path.find("/");
+    if (pos == std::string::npos)
+      throw Exception(url, "Could not find package name.");
+  
+    std::string package = path.substr(0, pos);
+    path.erase(0, pos);
+    std::string package_path = ros::package::getPath(package);
+    if (package_path.empty())
+      throw Exception(url, "Package '" + package + "' does not exist.");
+  
+    return package_path + path;
+  }
 
-  for (collision_detection::CollisionResult::ContactMap::iterator it=collision_result.contacts.begin(); 
-       it!=collision_result.contacts.end(); ++it)
-    for (std::vector<collision_detection::Contact>::iterator it2=it->second.begin(); 
-         it2 != it->second.end(); ++it2)
-    {
-      moveit_msgs::ContactInformation msg;
-      msg.header = header;
-      collision_detection::contactToMsg(*it2, msg);
-      result.push_back(msg);
-    }
+  std::string readFileFromPath(const std::string& path)
+  {
+    std::string line, result;
+    std::ifstream file(path);
+    if (!file.is_open())
+      throw std::runtime_error("Could not open file at '" + path + "'.");
 
-  ROS_INFO("Finished copying contacts.");
+    while ( std::getline (file,line) )
+      result += line;
+    file.close();
 
-  return result;
+    return result;
+  }
 }
 
 #endif // KNOWROB_MOVEIT_UTILS_HPP

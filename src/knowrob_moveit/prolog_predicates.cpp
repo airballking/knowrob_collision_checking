@@ -6,6 +6,7 @@
 #include <iostream>
 #include <ros/ros.h>
 #include <knowrob_moveit/planning_scene.hpp>
+#include <knowrob_moveit/utils.hpp>
 
 using namespace knowrob_moveit;
 
@@ -16,17 +17,31 @@ PREDICATE(hello_cpp, 1)
 
 PREDICATE(new_planning_scene, 1)
 {
-//  shared_ptr<PlanningScene>* p = new shared_ptr<PlanningScene>(new PlanningScene());
   PlanningScene* p = new PlanningScene();
   return PL_av[0] = (void*) p;
 }
 
-PREDICATE(check_collisions, 1)
+// TODO: get JointStates from outside
+// TODO: get maximum number of collisions
+// TODO: report actual collisions
+PREDICATE(check_collisions, 4)
 {
   void* input_ptr = (void*) PL_av[0];
-//  shared_ptr<PlanningScene>* p = (shared_ptr<PlanningScene>*) input_ptr;
   PlanningScene* p = (PlanningScene*) input_ptr;
-  p->checkCollisions("", "", sensor_msgs::JointState(), 20);
+
+  std::string urdf_file = readFileFromPath(resourceUrlToPath((char*) PL_av[1]));
+  std::string srdf_file = readFileFromPath(resourceUrlToPath((char*) PL_av[2]));
+  try
+  {
+    std::vector<moveit_msgs::ContactInformation> contacts =
+      p->checkCollisions(urdf_file, srdf_file, sensor_msgs::JointState(), 20);
+    return PL_av[3] = (long) contacts.size();
+  }
+  catch(const std::exception& e)
+  {
+    std::cout << "ERROR: " << e.what() << std::endl;
+    return FALSE;
+  }
 
   return TRUE;
 }
