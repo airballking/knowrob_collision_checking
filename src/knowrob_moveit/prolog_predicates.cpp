@@ -10,39 +10,68 @@
 
 using namespace knowrob_moveit;
 
-PlTermv toPl(const std_msgs::Header& msg)
+// TODO: move this into a separate file for clarification
+// TODO: make unit-tests checking this
+PlCompound fromHeaderMsg(const std_msgs::Header& msg)
 {
-  PlCompound frame_id("frame_id", PlTermv(msg.frame_id.c_str()));
-  PlCompound stamp("stamp", PlTermv(PlTerm(msg.stamp.toSec())));
-  return PlTermv(frame_id, stamp);
+  return PlCompound("header", PlTermv(PlTerm(msg.frame_id.c_str()), PlTerm(msg.stamp.toSec())));
 }
 
-PlTermv toPl(const geometry_msgs::Point& msg)
+std_msgs::Header toHeaderMsg(PlTerm& term)
 {
-  PlCompound x("x", PlTermv(PlTerm(msg.x)));
-  PlCompound y("y", PlTermv(PlTerm(msg.y)));
-  PlCompound z("z", PlTermv(PlTerm(msg.z)));
-  return PlTermv(x, y, z);
+  std_msgs::Header msg;
+  if(std::string(term.name()).compare("header") != 0)
+    throw std::runtime_error("Expected name 'header' for compound term.");
+
+  // TODO: check arity
+  msg.frame_id = (char *) term[1];
+  msg.stamp = ros::Time((double) term[2]);
+  // TODO: finish me
+  return msg;
 }
 
-PlTermv toPl(const moveit_msgs::ContactInformation& msg)
+sensor_msgs::JointState toJointStateMsg(PlTerm& term)
 {
-  PlCompound header("header", toPl(msg.header));
-  PlCompound position("position", toPl(msg.position));
-  PlCompound body1("contact_body_1", PlTermv(msg.contact_body_1.c_str()));
-  PlCompound body2("contact_body_2", PlTermv(msg.contact_body_2.c_str()));
-  PlCompound depth("depth", PlTermv(PlTerm(msg.depth)));
-  return PlTermv(header, position, body1, body2, depth);
+  sensor_msgs::JointState msg;
+  if(std::string(term.name()).compare("joint_state") != 0)
+    throw std::runtime_error("Expected name 'joint_state' for compound term.");
+
+  // TODO: check arity
+  PlTerm header_term = term[1];
+  msg.header = toHeaderMsg(header_term);
+  // TODO: finish me
+  return msg;
+}
+ 
+PlCompound fromPointMsg(const geometry_msgs::Point& msg)
+{
+  return PlCompound("point", PlTermv(PlTerm(msg.x), PlTerm(msg.y), PlTerm(msg.z)));
 }
 
-int toPl(const std::vector<moveit_msgs::ContactInformation>& msg, PlTail& list)
+PlCompound fromContactMsg(const moveit_msgs::ContactInformation& msg)
+{
+  return PlCompound("contact", 
+      PlTermv(fromHeaderMsg(msg.header), fromPointMsg(msg.position), 
+          PlTerm(msg.contact_body_1.c_str()), PlTerm(msg.contact_body_2.c_str()),
+          PlTerm(msg.depth)));
+}
+
+int fromContactMsgList(const std::vector<moveit_msgs::ContactInformation>& msg, PlTail& list)
 {
   for(size_t i=0; i<msg.size(); ++i)
-    list.append(PlCompound("contact", toPl(msg[i])));
+    list.append(fromContactMsg(msg[i]));
 
   return list.close();
 }
 
+PREDICATE(eat_header_msg, 1)
+{
+  PlTerm first_term = PL_av[0];
+  std_msgs::Header msg = toHeaderMsg(first_term);
+  std::cout << msg << std::endl;
+  return TRUE;
+}
+ 
 PREDICATE(hello_cpp, 1)
 {
    return PL_av[0] = "cpp";
@@ -68,14 +97,14 @@ PREDICATE(check_collisions, 4)
     sensor_msgs::JointState joint_states;
     joint_states.name.push_back("r_upper_arm_roll_joint");
     joint_states.position.push_back(-1.32);
-    joint_states.velocity.push_back(0.0);
-    joint_states.effort.push_back(0.0);
+//    joint_states.velocity.push_back(0.0);
+//    joint_states.effort.push_back(0.0);
 
     std::vector<moveit_msgs::ContactInformation> contacts =
       p->checkCollisions(urdf_file, srdf_file, joint_states, 20);
 
     PlTail contact_list(PL_av[3]);
-    return toPl(contacts, contact_list);
+    return fromContactMsgList(contacts, contact_list);
   }
   catch(const std::exception& e)
   {
